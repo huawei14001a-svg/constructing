@@ -1,12 +1,16 @@
-<!doctype html>
-<html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TeleBot Constructor</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+FROM node:20-slim
+
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY . .
+
+RUN npm install
+RUN npm --prefix web install --include=dev
+RUN npm --prefix web run build
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+CMD ["npm", "start"]
