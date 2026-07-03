@@ -1,0 +1,77 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api, setToken } from '../api';
+
+export default function Login() {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const nav = useNavigate();
+
+  async function submit() {
+    setErr('');
+    setBusy(true);
+    try {
+      const { token } = await api.post(`/auth/${mode}`, { email, password });
+      setToken(token);
+      nav('/');
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="brand" style={{ marginBottom: 20 }}>
+          <span className="brand-dot" /> TeleBot Constructor
+        </div>
+        <h1>{mode === 'login' ? 'Вход' : 'Регистрация'}</h1>
+        <p className="sub">Соберите Telegram-бота без кода</p>
+
+        <div className="field">
+          <label>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            placeholder="you@example.com"
+          />
+        </div>
+        <div className="field">
+          <label>Пароль</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            placeholder="Минимум 6 символов"
+          />
+        </div>
+
+        {err && <p className="error-line">{err}</p>}
+
+        <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={submit} disabled={busy}>
+          {busy ? '...' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
+        </button>
+
+        <div className="switch-line">
+          {mode === 'login' ? 'Нет аккаунта?' : 'Уже есть аккаунт?'}{' '}
+          <a
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login');
+              setErr('');
+            }}
+          >
+            {mode === 'login' ? 'Зарегистрироваться' : 'Войти'}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,131 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
+
+type Bot = {
+  id: string;
+  name: string;
+  username: string | null;
+  isActive: boolean;
+  _count: { subscribers: number; blocks: number };
+};
+
+export default function Dashboard() {
+  const [bots, setBots] = useState<Bot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [name, setName] = useState('');
+  const [token, setTokenInput] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const nav = useNavigate();
+
+  async function load() {
+    setLoading(true);
+    try {
+      setBots(await api.get('/bots'));
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function create() {
+    setErr('');
+    setBusy(true);
+    try {
+      const bot = await api.post('/bots', { name: name || undefined, token });
+      setShowNew(false);
+      setName('');
+      setTokenInput('');
+      nav(`/bots/${bot.id}`);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="page">
+      <div className="page-wide">
+        <div className="page-head">
+          <h2>Мои боты</h2>
+          <div className="spacer" />
+          <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+            + Новый бот
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="center" style={{ height: 200 }}>
+            <div className="spinner" />
+          </div>
+        ) : bots.length === 0 ? (
+          <div className="empty">
+            <p>Пока нет ни одного бота.</p>
+            <p>Получите токен у <span className="mono" style={{ color: 'var(--accent)' }}>@BotFather</span> и создайте первого.</p>
+          </div>
+        ) : (
+          <div className="grid">
+            {bots.map((b) => (
+              <div key={b.id} className="card" style={{ cursor: 'pointer' }} onClick={() => nav(`/bots/${b.id}`)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p className="card-title">{b.name}</p>
+                    {b.username && <span className="card-user">@{b.username}</span>}
+                  </div>
+                  <span className={`status-pill ${b.isActive ? 'status-on' : 'status-off'}`}>
+                    <span className="status-dot" /> {b.isActive ? 'Работает' : 'Остановлен'}
+                  </span>
+                </div>
+                <div className="card-stats">
+                  <div className="stat">
+                    <div className="n">{b._count.subscribers}</div>
+                    <div className="l">Подписчики</div>
+                  </div>
+                  <div className="stat">
+                    <div className="n">{b._count.blocks}</div>
+                    <div className="l">Блоки</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showNew && (
+        <div className="modal-bg" onClick={() => setShowNew(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Новый бот</h3>
+            <div className="field">
+              <label>Название (необязательно)</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Например: Бот поддержки" />
+            </div>
+            <div className="field">
+              <label>Токен от @BotFather</label>
+              <input
+                className="mono"
+                value={token}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="123456:ABC-DEF..."
+              />
+            </div>
+            {err && <p className="error-line">{err}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setShowNew(false)}>
+                Отмена
+              </button>
+              <button className="btn btn-primary" onClick={create} disabled={busy || !token}>
+                {busy ? 'Проверяем...' : 'Создать'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,58 @@
+export type Block = {
+  id: string;
+  type: string;
+  name: string;
+  triggerType: string | null;
+  triggerValue: string | null;
+  text: string;
+  mediaType: string | null;
+  mediaUrl: string | null;
+  variableName: string | null;
+  nextBlockId: string | null;
+  posX: number;
+  posY: number;
+  buttons: Btn[];
+};
+
+export type Btn = {
+  id?: string;
+  text: string;
+  action: 'goto' | 'url';
+  targetBlockId?: string | null;
+  url?: string | null;
+  row?: number;
+  position?: number;
+};
+
+export type Kind = 'start' | 'command' | 'text' | 'message' | 'input';
+
+export const KIND_META: Record<Kind, { label: string; color: string; cls: string; icon: string }> = {
+  start: { label: 'Старт', color: 'var(--node-start)', cls: 'type-start', icon: '▶' },
+  command: { label: 'Команда', color: 'var(--node-command)', cls: 'type-command', icon: '/' },
+  text: { label: 'Текст-триггер', color: 'var(--node-message)', cls: 'type-message', icon: '≈' },
+  message: { label: 'Сообщение', color: 'var(--node-message)', cls: 'type-message', icon: '✦' },
+  input: { label: 'Вопрос', color: 'var(--node-input)', cls: 'type-input', icon: '?' },
+};
+
+export function getKind(b: Block): Kind {
+  if (b.type === 'start') return 'start';
+  if (b.type === 'command') return 'command';
+  if (b.type === 'input') return 'input';
+  if (b.triggerType === 'text') return 'text';
+  return 'message';
+}
+
+export function applyKind(kind: Kind): Partial<Block> {
+  switch (kind) {
+    case 'start':
+      return { type: 'start', triggerType: 'start', triggerValue: 'start' };
+    case 'command':
+      return { type: 'command', triggerType: 'command' };
+    case 'text':
+      return { type: 'message', triggerType: 'text' };
+    case 'message':
+      return { type: 'message', triggerType: null, triggerValue: null };
+    case 'input':
+      return { type: 'input', triggerType: null, triggerValue: null };
+  }
+}

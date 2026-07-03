@@ -1,0 +1,97 @@
+import { Router } from 'express';
+import { prisma } from '../db.js';
+import { auth, type AuthedRequest } from '../auth/auth.middleware.js';
+
+export const blockRoutes = Router();
+blockRoutes.use(auth);
+
+async function assertOwnsBot(userId: string, botId: string) {
+  return prisma.bot.findFirst({ where: { id: botId, userId } });
+}
+async function assertOwnsBlock(userId: string, blockId: string) {
+  return prisma.block.findFirst({ where: { id: blockId, bot: { userId } }, include: { buttons: true } });
+}
+
+// Все блоки бота
+blockRoutes.get('/bots/:botId/blocks', async (req: AuthedRequest, res) => {
+  if (!(await assertOwnsBot(req.userId!, req.params.botId)))
+    return res.status(404).json({ error: 'Бот не найден' });
+  const blocks = await prisma.block.findMany({
+    where: { botId: req.params.botId },
+    include: { buttons: { orderBy: [{ row: 'asc' }, { position: 'asc' }] } },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(blocks);
+});
+
+// Создать блок
+blockRoutes.post('/bots/:botId/blocks', async (req: AuthedRequest, res) => {
+  if (!(await assertOwnsBot(req.userId!, req.params.botId)))
+    return res.status(404).json({ error: 'Бот не найден' });
+  const b = req.body || {};
+  const block = await prisma.block.create({
+    data: {
+      botId: req.params.botId,
+      type: b.type || 'message',
+      name: b.name || 'Новый блок',
+      triggerType: b.triggerType ?? null,
+      triggerValue: b.triggerValue ?? null,
+      text: b.text || '',
+      posX: b.posX ?? 120,
+      posY: b.posY ?? 120,
+    },
+    include: { buttons: true },
+  });
+  res.json(block);
+});
+
+// Обновить блок (в т.ч. позицию на канве)
+blockRoutes.patch('/blocks/:id', async (req: AuthedRequest, res) => {
+  if (!(await assertOwnsBlock(req.userId!, req.params.id)))
+    return res.status(404).json({ error: 'Блок не найден' });
+  const b = req.body || {};
+  const data: Record<string, any> = {};
+  for (const key of ['name', 'type', 'triggerType', 'triggerValue', 'text', 'mediaType', 'mediaUrl', 'variableName', 'nextBlockId', 'posX', 'posY']) {
+    if (key in b) data[key] = b[key];
+  }
+  const block = await prisma.block.update({
+    where: { id: req.params.id },
+    data,
+    include: { buttons: { orderBy: [{ row: 'asc' }, { position: 'asc' }] } },
+  });
+  res.json(block);
+});
+
+// Удалить блок
+blockRoutes.delete('/blocks/:id', async (req: AuthedRequest, res) => {
+  if (!(await assertOwnsBlock(req.userId!, req.params.id)))
+    return res.status(404).json({ error: 'Блок не найден' });
+  await prisma.block.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+});
+
+// Заменить набор кнопок блока целиком
+blockRoutes.put('/blocks/:id/buttons', async (req: AuthedRequest, res) => {
+  if (!(await assertOwnsBlock(req.userId!, req.params.id)))
+    return res.status(404).json({ error: 'Блок не найден' });
+  const items: any[] = Array.isArray(req.body?.buttons) ? req.body.buttons : [];
+  await prisma.button.deleteMany({ where: { blockId: req.params.id } });
+  if (items.length) {
+    await prisma.button.createMany({
+      data: items.map((it, i) => ({
+        blockId: req.params.id,
+        text: String(it.text || 'Кнопка'),
+        action: it.action === 'url' ? 'url' : 'goto',
+        targetBlockId: it.targetBlockId || null,
+        url: it.url || null,
+        row: Number.isFinite(it.row) ? it.row : i,
+        position: Number.isFinite(it.position) ? it.position : 0,
+      })),
+    });
+  }
+  const block = await prisma.block.findUnique({
+    where: { id: req.params.id },
+    include: { buttons: { orderBy: [{ row: 'asc' }, { position: 'asc' }] } },
+  });
+  res.json(block);
+});
